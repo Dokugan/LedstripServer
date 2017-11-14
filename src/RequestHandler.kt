@@ -4,6 +4,7 @@ import com.sun.deploy.net.HttpRequest
 import com.sun.deploy.net.HttpResponse
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
+import java.io.InputStreamReader
 import java.io.UnsupportedEncodingException
 import java.lang.RuntimeException
 import java.net.HttpURLConnection
@@ -60,7 +61,25 @@ class RequestHandler(val server: Server) : HttpHandler {
             }
             HTTP_POST -> {
                 when(exchange.requestURI.path){
+                    "/controller" -> {
+                        try{
+                            val params = parseQueryString(exchange.requestURI.query)
 
+                            val controller = server.controllers.findWithId(params.getValue("id").toInt().toByte())
+                            if (controller != null){
+                                val body = InputStreamReader(exchange.requestBody, "utf-8")
+                                controller.pattern = Gson().fromJson(body, Pattern::class.java)
+                            }
+
+                            responseStr = GsonBuilder().setPrettyPrinting().create().toJson(controller)
+                            exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+
+                        } catch (e: Exception){
+                            responseStr = "Bad Request"
+                            exchange.sendResponseHeaders(HttpURLConnection.HTTP_BAD_REQUEST, responseStr.length.toLong())
+                            e.printStackTrace()
+                        }
+                    }
                 }
             }
         }

@@ -40,7 +40,7 @@ class RequestHandler(val server: Server) : HttpHandler {
                                 }
                             } else {
 
-                                val newController = LedControllerStatus(params.getValue("id").toInt().toByte(), params.getValue("id").toInt().toString(), Pattern(ArrayList()))
+                                val newController = LedControllerStatus(params.getValue("id").toInt().toByte(), params.getValue("id").toInt().toString(), 0.toByte(),Pattern(ArrayList()))
                                 server.addController(newController)
                                 responseStr = "patternlength="+newController.pattern.colors.size.toString()+"\n"
                             }

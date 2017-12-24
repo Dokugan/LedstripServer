@@ -1,4 +1,5 @@
 import com.sun.net.httpserver.HttpExchange
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.util.*
 
@@ -19,11 +20,18 @@ class ResponseQueue{
         while (i.hasNext()){
             val req = i.next()
             if (req.first == controller.id){
-                responseStr = "patternlength="+controller.pattern.colors.size.toString()+"\n"
+                responseStr = controller.pattern.colors.size.toString()+"\n"
                 for (c in controller.pattern.colors){
-                    responseStr += "{r=${c.r.toPositiveInt()};g=${c.g.toPositiveInt()};b=${c.b.toPositiveInt()}}\n"
+                    responseStr += "${c.g.toPositiveInt()};${c.r.toPositiveInt()};${c.b.toPositiveInt()}\n"
                 }
-                req.second.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+
+                try {
+                    req.second.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+                } catch (ex: IOException){
+                    i.remove()
+                    return
+                }
+
                 val response: ByteArray
                 response = responseStr.toByteArray()
                 val out = req.second.responseBody

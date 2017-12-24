@@ -32,9 +32,9 @@ class RequestHandler(val server: Server) : HttpHandler {
                             if(controller != null){
 
                                 //If controller exists, return length of the pattern followed by colors in the pattern
-                                responseStr = "patternlength="+controller.pattern.colors.size.toString()+"\n"
+                                responseStr = controller.pattern.colors.size.toString()+"\n"
                                 for (c in controller.pattern.colors){
-                                    responseStr += "{r=${c.r.toPositiveInt()};g=${c.g.toPositiveInt()};b=${c.b.toPositiveInt()}}\n"
+                                    responseStr += "${c.g.toPositiveInt()};${c.r.toPositiveInt()};${c.b.toPositiveInt()}\n"
                                 }
                             } else {
 

@@ -7,6 +7,22 @@ import java.io.UnsupportedEncodingException
 import java.lang.RuntimeException
 import java.net.HttpURLConnection
 import java.net.URLDecoder
+import java.util.stream.Collectors.mapping
+import java.util.LinkedHashMap
+import java.util.AbstractMap.SimpleImmutableEntry
+import java.util.stream.Collectors
+import java.util.Arrays
+import java.util.Collections.emptyMap
+import java.util.function.Supplier
+import kotlin.reflect.jvm.internal.impl.utils.StringsKt
+import java.util.stream.Collectors.mapping
+import java.util.Collections.emptyMap
+import java.util.LinkedList
+
+
+
+
+
 
 class RequestHandler(val server: Server) : HttpHandler {
 
@@ -26,22 +42,38 @@ class RequestHandler(val server: Server) : HttpHandler {
                         //Try to parse querry
                         try {
                             val params = parseQueryString(exchange.requestURI.query)
-
+                            println(params)
                             //Find controller with id from querry, if it does not exists make new controller with given id
-                            val controller = server.controllers.findWithId(params.getValue("id").toInt().toByte())
+                            var controller = server.controllers.findWithId(params.getValue("id").toInt().toByte())
                             if(controller != null){
 
                                 //If controller exists, return length of the pattern followed by colors in the pattern
-                                responseStr = controller.pattern.colors.size.toString()+"\n"
-                                for (c in controller.pattern.colors){
-                                    responseStr += "${c.g.toPositiveInt()};${c.r.toPositiveInt()};${c.b.toPositiveInt()}\n"
+                                if (controller.on) {
+                                    responseStr = controller.pattern.colors.size.toString()+"\n"
+                                    for (c in controller.pattern.colors) {
+                                        responseStr += "${c.g.toPositiveInt()};${c.r.toPositiveInt()};${c.b.toPositiveInt()}\n"
+                                    }
+                                } else {
+                                    //1 because no color is only 1 0,0,0 color
+                                    responseStr = "1\n0;0;0\n"
                                 }
                             } else {
 
-                                val newController = LedControllerStatus(params.getValue("id").toInt().toByte(), params.getValue("id").toInt().toString(), 0.toByte(),Pattern(ArrayList()))
+                                val newController = LedControllerStatus(params.getValue("id").toInt().toByte(), params.getValue("id").toInt().toString(), 0.toByte(),Pattern(ArrayList()), true)
                                 server.addController(newController)
                                 responseStr = "patternlength="+newController.pattern.colors.size.toString()+"\n"
+                                controller = newController
                             }
+
+                            //check for on/off param
+                            try {
+                                val onParam = params.getValue("on")
+                                if (onParam == "true") {
+                                    controller.turnOnAndRepond(server.responseQueue)
+                                } else if (onParam == "false") {
+                                    controller.turnOffAndRespond(server.responseQueue)
+                                }
+                            } catch (e: Exception){}
                             exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
                         }
 
@@ -49,6 +81,7 @@ class RequestHandler(val server: Server) : HttpHandler {
                         catch (e: Exception) {
                             responseStr = "Bad Request"
                             exchange.sendResponseHeaders(HttpURLConnection.HTTP_BAD_REQUEST, responseStr.length.toLong())
+                            e.printStackTrace()
                         }
                     }
                     "/controllers" -> {
@@ -60,7 +93,7 @@ class RequestHandler(val server: Server) : HttpHandler {
 
                         val controller = server.controllers.findWithId(params.getValue("id").toInt().toByte())
                         if(controller == null) {
-                            val newController = LedControllerStatus(params.getValue("id").toInt().toByte(), params.getValue("id").toInt().toString(), 0.toByte(),Pattern(ArrayList()))
+                            val newController = LedControllerStatus(params.getValue("id").toInt().toByte(), params.getValue("id").toInt().toString(), 0.toByte(),Pattern(ArrayList()), true)
                             server.addController(newController)
                             responseStr = "patternlength="+newController.pattern.colors.size.toString()+"\n"
                             exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
@@ -103,23 +136,34 @@ class RequestHandler(val server: Server) : HttpHandler {
         exchange.close()
     }
 
-    fun parseQueryString(query: String?): Map<String, String>{
-        val result = HashMap<String, String>()
-        if (query == null) return result
-        var last = 0; var next: Int; val length = query.length
-        while (last < 1){
-            next = query.indexOf("&", last)
-            if (next == -1) next = length
+//    fun parseQueryString(query: String?): Map<String, String>{
+//        val result = HashMap<String, String>()
+//        if (query == null) return result
+//        var last = 0; var next: Int; val length = query.length
+//        while (last < 1){
+//            next = query.indexOf("&", last)
+//            if (next == -1) next = length
+//
+//            if (next > last){
+//                val eqPos = query.indexOf("=", last)
+//                try {
+//                    if (eqPos < 0 || eqPos > next) result.put(URLDecoder.decode(query.substring(last, next), "utf-8"), "")
+//                    else result.put(URLDecoder.decode(query.substring(last, eqPos), "utf-8"), URLDecoder.decode(query.substring(eqPos + 1, next), "utf-8"))
+//                } catch (e: UnsupportedEncodingException){ throw RuntimeException(e)}
+//            }
+//            last = next + 1
+//        }
+//        return result
+//    }
 
-            if (next > last){
-                val eqPos = query.indexOf("=", last)
-                try {
-                    if (eqPos < 0 || eqPos > next) result.put(URLDecoder.decode(query.substring(last, next), "utf-8"), "")
-                    else result.put(URLDecoder.decode(query.substring(last, eqPos), "utf-8"), URLDecoder.decode(query.substring(eqPos + 1, next), "utf-8"))
-                } catch (e: UnsupportedEncodingException){ throw RuntimeException(e)}
-            }
-            last = next + 1
+    @Throws(UnsupportedEncodingException::class)
+    fun parseQueryString(query: String): Map<String, String> {
+        val query_pairs = LinkedHashMap<String, String>()
+        val pairs = query.split("&".toRegex()).dropLastWhile({ it.isEmpty() }).toTypedArray()
+        for (pair in pairs) {
+            val idx = pair.indexOf("=")
+            query_pairs[URLDecoder.decode(pair.substring(0, idx), "UTF-8")] = URLDecoder.decode(pair.substring(idx + 1), "UTF-8")
         }
-        return result
+        return query_pairs
     }
 }

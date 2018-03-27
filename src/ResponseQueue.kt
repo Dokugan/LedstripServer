@@ -14,14 +14,14 @@ class ResponseQueue{
     /*
        Sends response to controllers waiting for change
      */
-    fun sendResponse(controller: LedControllerStatus){
+    fun sendResponse(controller: LedControllerStatus, pattern: Pattern){
         var responseStr: String
         val i = requests.iterator()
         while (i.hasNext()){
             val req = i.next()
             if (req.first == controller.id){
-                responseStr = controller.pattern.colors.size.toString()+"\n"
-                for (c in controller.pattern.colors){
+                responseStr = pattern.colors.size.toString()+"\n"
+                for (c in pattern.colors){
                     responseStr += "${c.g.toPositiveInt()};${c.r.toPositiveInt()};${c.b.toPositiveInt()}\n"
                 }
 

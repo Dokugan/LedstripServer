@@ -4,20 +4,9 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import java.io.InputStreamReader
 import java.io.UnsupportedEncodingException
-import java.lang.RuntimeException
 import java.net.HttpURLConnection
 import java.net.URLDecoder
-import java.util.stream.Collectors.mapping
 import java.util.LinkedHashMap
-import java.util.AbstractMap.SimpleImmutableEntry
-import java.util.stream.Collectors
-import java.util.Arrays
-import java.util.Collections.emptyMap
-import java.util.function.Supplier
-import kotlin.reflect.jvm.internal.impl.utils.StringsKt
-import java.util.stream.Collectors.mapping
-import java.util.Collections.emptyMap
-import java.util.LinkedList
 
 
 
@@ -37,6 +26,7 @@ class RequestHandler(val server: Server) : HttpHandler {
         when(exchange.requestMethod){
             HTTP_GET -> {
                 when(exchange.requestURI.path){
+                    //returns simplified pattern data meanth for controllers
                     "/controller" -> {
 
                         //Try to parse querry
@@ -84,10 +74,29 @@ class RequestHandler(val server: Server) : HttpHandler {
                             e.printStackTrace()
                         }
                     }
+                    //returns data of all controllers in JSON form
                     "/controllers" -> {
-                        responseStr = GsonBuilder().setPrettyPrinting().create().toJson(server.controllers)
-                        exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+                        //check for on/off param
+                        try {
+                            val params = parseQueryString(exchange.requestURI.query)
+                            val onParam = params.getValue("on")
+                            if (onParam == "true") {
+                                for (s in server.controllers){
+                                    s.turnOnAndRepond(server.responseQueue)
+                                }
+                                //controller.turnOnAndRepond(server.responseQueue)
+                            } else if (onParam == "false") {
+                                for (s in server.controllers){
+                                    s.turnOffAndRespond(server.responseQueue)
+                                }
+                            }
+                        } catch (e: Exception){}
+                        finally {
+                            responseStr = GsonBuilder().setPrettyPrinting().create().toJson(server.controllers)
+                            exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+                        }
                     }
+                    //returns simplified pattern data once data is changed
                     "/poll" -> {
                         val params = parseQueryString(exchange.requestURI.query)
 
@@ -103,6 +112,31 @@ class RequestHandler(val server: Server) : HttpHandler {
                             return
                         }
                     }
+                    //returns whether one or more controllers are turned on or not or if one specific controller is turned on with specified id
+                    "/state" -> {
+
+                        try {
+                            val params = parseQueryString(exchange.requestURI.query)
+                            val controller = server.controllers.findWithId(params.getValue("id").toInt().toByte())
+                            var state = false
+                            if (controller != null){
+                                if (controller.on) state = true
+                            }
+                            responseStr = state.toString()
+                            exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+                        } catch (e: Exception){
+                            var state = false
+                            for (c: LedControllerStatus in server.controllers)
+                            {
+                                if (c.on){
+                                    state = true
+                                    break
+                                }
+                            }
+                            responseStr = state.toString()
+                            exchange.sendResponseHeaders(HttpURLConnection.HTTP_OK, responseStr.length.toLong())
+                        }
+                    }
                 }
             }
             HTTP_POST -> {
@@ -115,6 +149,7 @@ class RequestHandler(val server: Server) : HttpHandler {
                             if (controller != null){
                                 val body = InputStreamReader(exchange.requestBody, "utf-8")
                                 val pattern = Gson().fromJson(body, Pattern::class.java)
+                                println(pattern.toString())
                                 controller.setPatternAndRespond(pattern, server.responseQueue)
                             }
 
@@ -135,26 +170,6 @@ class RequestHandler(val server: Server) : HttpHandler {
         out.close()
         exchange.close()
     }
-
-//    fun parseQueryString(query: String?): Map<String, String>{
-//        val result = HashMap<String, String>()
-//        if (query == null) return result
-//        var last = 0; var next: Int; val length = query.length
-//        while (last < 1){
-//            next = query.indexOf("&", last)
-//            if (next == -1) next = length
-//
-//            if (next > last){
-//                val eqPos = query.indexOf("=", last)
-//                try {
-//                    if (eqPos < 0 || eqPos > next) result.put(URLDecoder.decode(query.substring(last, next), "utf-8"), "")
-//                    else result.put(URLDecoder.decode(query.substring(last, eqPos), "utf-8"), URLDecoder.decode(query.substring(eqPos + 1, next), "utf-8"))
-//                } catch (e: UnsupportedEncodingException){ throw RuntimeException(e)}
-//            }
-//            last = next + 1
-//        }
-//        return result
-//    }
 
     @Throws(UnsupportedEncodingException::class)
     fun parseQueryString(query: String): Map<String, String> {
